@@ -18,7 +18,7 @@
 		},
 		// install .NET CSharpier
 		"ghcr.io/nikiforovall/devcontainer-features/dotnet-csharpier:1": {}
-	}
+	},
 
 	// Configure tool-specific properties.
 	// "customizations": {},
@@ -32,7 +32,7 @@
 	// }
 
     // Use 'postCreateCommand' to run commands after the container is created.
-    // "postCreateCommand": "dotnet --info",
+    "postCreateCommand": "bash ./.devcontainer/scripts/lifecycle/postcreate.sh"
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "root"
