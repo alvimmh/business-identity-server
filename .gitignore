@@ -1,0 +1,6 @@
+# devcontainer
+.devcontainer/*
+!.devcontainer/scripts
+!.devcontainer/devcontainer.json
+!.devcontainer/docker-compose.yml
+!.devcontainer/Dockerfile
