@@ -20,5 +20,15 @@ echo "<\##########################################/>"
 
 echo $'\n\nInstalling dotnet-ef tool globally'
 echo "<<##########################################>>"
-dotnet tool install dotnet-ef -g
+dotnet tool install dotnet-ef -g --version 10.0.10
+echo "<\##########################################/>"
+
+echo $'\n\nInstalling libman tool globally'
+echo "<<##########################################>>"
+dotnet tool install -g Microsoft.Web.LibraryManager.Cli --version 3.0.114
+echo "<\##########################################/>"
+
+echo $'\n\nInstalling dotnet-aspnet-codegenerator tool globally'
+echo "<<##########################################>>"
+dotnet tool install --global dotnet-aspnet-codegenerator --version 10.0.2
 echo "<\##########################################/>"

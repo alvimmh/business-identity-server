@@ -1,3 +1,5 @@
+using BusinessIdentityServer.Internals.DependencyInjectionExtensions;
+
 namespace BusinessIdentityServer;
 
 public class Startup
@@ -15,8 +17,10 @@ public class Startup
     {
         services.AddControllersWithViews();
 
-        if (Environment.IsDevelopment())
-            services.AddDatabaseDeveloperPageExceptionFilter();
+        services.AddMainDbContext(
+            Configuration,
+            Environment
+        );
     }
 
     public void Configure(IApplicationBuilder app)
@@ -43,6 +47,10 @@ public class Startup
         app.UseStaticFiles();
 
         app.UseRouting();
+
+        app.UseAuthentication();
+
+        app.UseAuthorization();
 
         app.UseEndpoints(endpoints =>
         {
