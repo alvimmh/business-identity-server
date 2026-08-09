@@ -1,5 +1,9 @@
 # devcontainer
 .devcontainer/*
+!.devcontainer/sample.app.devcontainer.env
+!.devcontainer/sample.db.devcontainer.env
+!.devcontainer/sample.env
+!.devcontainer/sample.servers.json
 !.devcontainer/scripts
 !.devcontainer/devcontainer.json
 !.devcontainer/docker-compose.yml

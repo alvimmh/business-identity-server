@@ -1,0 +1,13 @@
+{
+	"Servers": {
+		"1": {
+			"Name": "",
+			"Group": "",
+			"Host": "",
+			"Port": 0,
+			"SSLMode": "",
+			"MaintenanceDB": "",
+			"Username": ""
+		}
+	}
+}
