@@ -20,7 +20,7 @@ echo "<\##########################################/>"
 
 echo $'\n\nInstalling dotnet-ef tool globally'
 echo "<<##########################################>>"
-dotnet tool install dotnet-ef -g --version 10.0.10
+dotnet tool install dotnet-ef -g --version 10.0.13
 echo "<\##########################################/>"
 
 echo $'\n\nInstalling libman tool globally'
