@@ -1,0 +1,10 @@
+@{
+    string? captchaSiteKey = null;
+
+    if (TempData.TryGetValue(TempDataKeys.CloudflareCaptchaSiteKey, out object? captchaSiteKeyTempData))
+    {
+        captchaSiteKey = captchaSiteKeyTempData as string;
+    }
+}
+
+<div class="cf-turnstile" data-sitekey="@captchaSiteKey" data-callback="javascriptCallback"></div>

@@ -1,0 +1,30 @@
+@{
+    string? errorMessage = null;
+
+    if (TempData.TryGetValue(TempDataKeys.ErrorMessage, out object? errorMessageTempData))
+    {
+        errorMessage = errorMessageTempData as string;
+    }
+
+    string? successMessage = null;
+
+    if (TempData.TryGetValue(TempDataKeys.SuccessMessage, out object? successMessageTempData))
+    {
+        successMessage = successMessageTempData as string;
+    }
+}
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="w-75 mx-auto text-center alert alert-danger alert-dismissible fade show p-0" role="alert">
+        @errorMessage
+        <i data-bs-dismiss="alert" aria-label="Close Icon Button" class="btn btn-sm bi bi-x fs-4"></i>
+    </div>
+}
+else if (!string.IsNullOrWhiteSpace(successMessage))
+{
+    <div class="w-75 mx-auto text-center alert alert-success alert-dismissible fade show p-0" role="alert">
+        @successMessage
+        <i data-bs-dismiss="alert" aria-label="Close Icon Button" class="btn btn-sm bi bi-x fs-4"></i>
+    </div>
+}
