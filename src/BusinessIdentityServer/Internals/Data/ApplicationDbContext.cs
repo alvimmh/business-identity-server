@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using BusinessIdentityServer.Internals.Models.DatabaseModels;
 
@@ -9,6 +9,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options)
     {}
+
+    public DbSet<EmailRecord> EmailRecords { get; set; }
+    public DbSet<UserAccessRecord> UserAccessRecords { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

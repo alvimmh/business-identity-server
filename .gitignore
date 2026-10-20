@@ -1,3 +1,5 @@
+.legacy/*
+
 # devcontainer
 .devcontainer/*
 !.devcontainer/sample.app.devcontainer.env
