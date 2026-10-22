@@ -4,8 +4,8 @@ namespace BusinessIdentityServer;
 
 public class Startup
 {
-    public IConfiguration Configuration { get; }
-    public IWebHostEnvironment Environment { get; }
+    public static IConfiguration Configuration { get; private set; } = null!;
+    public static IWebHostEnvironment Environment { get; private set; } = null!;
 
     public Startup(IConfiguration configuration, IWebHostEnvironment environment)
     {
@@ -37,7 +37,6 @@ public class Startup
             app.UseStatusCodePagesWithRedirects("~/clientservices/correspondence/error?errortype={0}");
             
             app.UseHsts();
-
         }
 
         app.UseHttpsRedirection();
