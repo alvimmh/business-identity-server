@@ -21,6 +21,8 @@ public class Startup
             options.Filters.Add<SecurityHeadersAttribute>();
         });
 
+        services.AddForwardedHeadersMiddleware(Environment);
+
         services.AddMainDbContext(
             Configuration,
             Environment
@@ -29,6 +31,10 @@ public class Startup
 
     public void Configure(IApplicationBuilder app)
     {
+        // The Forwarded headers middleware must run before other middleware
+        // https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/proxy-load-balancer?view=aspnetcore-10.0#middleware-order
+        app.UseForwardedHeaders();
+
         if (Environment.IsDevelopment())
         {
             app.UseDeveloperExceptionPage();
@@ -44,8 +50,6 @@ public class Startup
         }
 
         app.UseHttpsRedirection();
-
-        app.UseForwardedHeaders();
 
         app.UseStaticFiles();
 
