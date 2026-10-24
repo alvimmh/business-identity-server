@@ -1,4 +1,5 @@
 using BusinessIdentityServer.Internals.DependencyInjectionExtensions;
+using BusinessIdentityServer.Internals.Filters.ResultFilters;
 
 namespace BusinessIdentityServer;
 
@@ -15,7 +16,10 @@ public class Startup
 
     public void ConfigureServices(IServiceCollection services)
     {
-        services.AddControllersWithViews();
+        services.AddControllersWithViews(options =>
+        {
+            options.Filters.Add<SecurityHeadersAttribute>();
+        });
 
         services.AddMainDbContext(
             Configuration,
