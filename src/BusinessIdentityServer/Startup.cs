@@ -23,15 +23,18 @@ public class Startup
 
         services.AddForwardedHeadersMiddleware(Environment);
 
+        services.AddSessionStorage();
+
         services.AddMainDbContext(
             Configuration,
             Environment
         );
     }
 
+    // middleware order: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/middleware/?view=aspnetcore-10.0#middleware-order
     public void Configure(IApplicationBuilder app)
     {
-        // The Forwarded headers middleware must run before other middleware
+        // the Forwarded headers middleware must run before other middleware
         // https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/proxy-load-balancer?view=aspnetcore-10.0#middleware-order
         app.UseForwardedHeaders();
 
@@ -54,6 +57,10 @@ public class Startup
         app.UseStaticFiles();
 
         app.UseRouting();
+
+        // call UseSession after UseRouting and before MapRazorPages and MapDefaultControllerRoute
+        // https://learn.microsoft.com/en-us/aspnet/core/fundamentals/app-state?view=aspnetcore-10.0#configure-session-state
+        app.UseSession();
 
         app.UseAuthentication();
 
