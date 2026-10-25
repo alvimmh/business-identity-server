@@ -29,6 +29,12 @@ public class Startup
             Configuration,
             Environment
         );
+
+        services.AddProjectIdentity();
+
+        // call services.ConfigureApplicationCookie after calling services.AddIdentity or services.AddDefaultIdentity
+        // https://learn.microsoft.com/en-us/aspnet/core/security/authentication/identity-configuration?view=aspnetcore-10.0#cookie-settings
+        services.AddProjectAuthentication();
     }
 
     // middleware order: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/middleware/?view=aspnetcore-10.0#middleware-order
@@ -62,6 +68,8 @@ public class Startup
         // https://learn.microsoft.com/en-us/aspnet/core/fundamentals/app-state?view=aspnetcore-10.0#configure-session-state
         app.UseSession();
 
+        // the UseCors, UseAuthentication, and UseAuthorization calls must appear in the correct order
+        // https://learn.microsoft.com/en-us/aspnet/core/fundamentals/middleware/?view=aspnetcore-10.0#middleware-order
         app.UseAuthentication();
 
         app.UseAuthorization();
