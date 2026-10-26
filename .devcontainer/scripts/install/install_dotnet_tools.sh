@@ -11,13 +11,6 @@ echo "<<##########################################>>"
 dotnet dev-certs https
 echo "<\##########################################/>"
 
-echo $'\n\nUpdating dotnet workload'
-echo "<<##########################################>>"
-# update dotnet workload but this may be an issue with dotnet cli itself
-# see: https://github.com/dotnet/sdk/issues/35128 for more information
-sudo dotnet workload update
-echo "<\##########################################/>"
-
 echo $'\n\nInstalling dotnet-ef tool globally'
 echo "<<##########################################>>"
 dotnet tool install dotnet-ef -g --version 10.0.13
@@ -30,5 +23,10 @@ echo "<\##########################################/>"
 
 echo $'\n\nInstalling dotnet-aspnet-codegenerator tool globally'
 echo "<<##########################################>>"
-dotnet tool install --global dotnet-aspnet-codegenerator --version 10.0.2
+dotnet tool install -g dotnet-aspnet-codegenerator --version 10.0.2
+echo "<\##########################################/>"
+
+echo $'\n\nInstalling csharpier tool globally'
+echo "<<##########################################>>"
+dotnet tool install -g csharpier
 echo "<\##########################################/>"

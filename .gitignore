@@ -1,4 +1,5 @@
 .legacy/*
+.agents/*
 
 # devcontainer
 .devcontainer/*

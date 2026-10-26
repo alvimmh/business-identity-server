@@ -21,15 +21,45 @@
 	},
 
 	// Configure tool-specific properties.
-	// "customizations": {},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"csharpier.csharpier-vscode",
+				"google.google-antigravity"
+			]
+		}
+	},
 
-	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [5000, 5001, 5432],
-	// "portsAttributes": {
-	//		"5001": {
-	//			"protocol": "https"
-	//		}
-	// }
+	// Added Docker named volumes (e.g., antigravity-user-gemini)
+	// to mount to e.g., /home/vscode/.gemini. This ensures login
+	// session and configuration survive container rebuilds
+	// without touching host credential files.
+	"mounts": [
+		"source=antigravity-user-gemini,target=/home/vscode/.gemini,type=volume",
+		"source=antigravity-user-config,target=/home/vscode/.config/antigravity,type=volume"
+	],
+
+	// explicitly forwarded ports for the application and database
+	"forwardPorts": [5000, 5001, 5432],
+	"portsAttributes": {
+		"5000": {
+			"label": "Application (HTTP)",
+			"onAutoForward": "silent"
+		},
+		"5001": {
+			"label": "Application (HTTPS)",
+			"protocol": "https",
+			"onAutoForward": "silent"
+		},
+		"5432": {
+			"label": "PostgreSQL",
+			"onAutoForward": "silent"
+		}
+	},
+	// ignore background processes / compiler IPC from automatically forwarding random ports
+	"otherPortsAttributes": {
+		"onAutoForward": "ignore"
+	},
 
     // Use 'postCreateCommand' to run commands after the container is created.
     "postCreateCommand": "bash ./.devcontainer/scripts/lifecycle/postcreate.sh"
