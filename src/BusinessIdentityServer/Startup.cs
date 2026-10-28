@@ -37,6 +37,8 @@ public class Startup
         // call services.ConfigureApplicationCookie after calling services.AddIdentity or services.AddDefaultIdentity
         // https://learn.microsoft.com/en-us/aspnet/core/security/authentication/identity-configuration?view=aspnetcore-10.0#cookie-settings
         services.AddProjectAuthentication();
+
+        services.AddProjectServices();
     }
 
     // middleware order: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/middleware/?view=aspnetcore-10.0#middleware-order
