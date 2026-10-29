@@ -1,0 +1,5 @@
+{
+    "dotnet.defaultSolution": "business-identity-server.sln",
+    "omnisharp.defaultLaunchSolution": "business-identity-server.sln"
+}
+
