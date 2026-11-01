@@ -1,7 +1,7 @@
 using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
-using BusinessIdentityServer.Internals.Services.DataProtection.Models;
+using BusinessIdentityServer.Internals.Constants.DataProtection;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
 

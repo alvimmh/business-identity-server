@@ -1,4 +1,4 @@
-namespace BusinessIdentityServer.Internals.Services.DataProtection.Models;
+namespace BusinessIdentityServer.Internals.Constants.DataProtection;
 
 // defines strongly-typed protection purposes for isolating time-limited encrypted tokens
 public enum ProtectionPurpose
@@ -8,9 +8,6 @@ public enum ProtectionPurpose
 
     // encrypts email verification challenge tokens during user registration/sign up
     EmailSignupChallenge,
-
-    // encrypts session verification challenge tokens for secondary authentication (2FA) during login
-    SessionVerificationChallenge,
 
     // encrypts access recovery challenge tokens when resetting or recovering TOTP access
     TotpAccessRecovery

@@ -1,5 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
-using BusinessIdentityServer.Internals.Services.DataProtection.Models;
+using BusinessIdentityServer.Internals.Constants.DataProtection;
 
 namespace BusinessIdentityServer.Internals.Services.DataProtection;
 
