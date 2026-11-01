@@ -47,6 +47,7 @@ namespace BusinessIdentityServer.Internals.Data.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Email")
+                        .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
@@ -112,7 +113,10 @@ namespace BusinessIdentityServer.Internals.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("UserNameIndex");
 
-                    b.ToTable("AspNetUsers", (string)null);
+                    b.ToTable("AspNetUsers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AspNetUsers_Email_NotWhitespace", "length(trim(\"Email\")) > 0");
+                        });
                 });
 
             modelBuilder.Entity("BusinessIdentityServer.Internals.Models.DatabaseModels.EmailRecord", b =>
