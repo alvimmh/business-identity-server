@@ -11,7 +11,8 @@ public static class RegisterIdentity
     {
         services.AddIdentity<ApplicationUser, IdentityRole>()
             .AddEntityFrameworkStores<ApplicationDbContext>()
-            .AddDefaultTokenProviders();
+            .AddDefaultTokenProviders()
+            .AddProjectTokenProviders();
 
 
         services.Configure<IdentityOptions>(options =>
