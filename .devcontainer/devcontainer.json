@@ -30,13 +30,13 @@
 		}
 	},
 
-	// Added Docker named volumes (e.g., antigravity-user-gemini)
-	// to mount to e.g., /home/vscode/.gemini. This ensures login
-	// session and configuration survive container rebuilds
-	// without touching host credential files.
+	// Bind mount host Antigravity directories (.gemini and .config/antigravity)
+	// to share login sessions, project configurations, and conversation
+	// histories seamlessly between the host and devcontainer, ensuring full
+	// persistence across container rebuilds.
 	"mounts": [
-		"source=antigravity-user-gemini,target=/home/vscode/.gemini,type=volume",
-		"source=antigravity-user-config,target=/home/vscode/.config/antigravity,type=volume"
+		"source=${localEnv:HOME}/.gemini,target=/home/vscode/.gemini,type=bind",
+		"source=${localEnv:HOME}/.config/antigravity,target=/home/vscode/.config/antigravity,type=bind"
 	],
 
 	// explicitly forwarded ports for the application and database

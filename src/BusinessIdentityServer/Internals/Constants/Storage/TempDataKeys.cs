@@ -11,4 +11,5 @@ public static class TempDataKeys
     public const string CloudflareCaptchaSiteKey = "cloudflareCaptchaSiteKey";
     public const string ErrorMessage = "errorMessage";
     public const string SuccessMessage = "successMessage";
+    public const string TotpRegistrationSession = "totpRegistrationSession";
 }

@@ -1,6 +1,6 @@
 using BusinessIdentityServer.Internals.Models.DatabaseModels;
 
-namespace BusinessIdentityServer.Internals.Models.Extensions;
+namespace BusinessIdentityServer.Internals.Extensions.Domain;
 
 /// <summary>
 /// Domain extension methods for <see cref="ApplicationUser"/>.
