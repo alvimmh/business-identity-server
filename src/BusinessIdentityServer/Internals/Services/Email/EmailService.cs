@@ -1,10 +1,11 @@
 using BusinessIdentityServer.Internals.Data;
 using BusinessIdentityServer.Internals.Models.DatabaseModels;
+using BusinessIdentityServer.Internals.Extensions.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace BusinessIdentityServer.Internals.Services.Email;
 
-public class EmailService
+public sealed class EmailService
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly SMTPService _smtpService;
@@ -23,19 +24,21 @@ public class EmailService
         _smtpService = smtpService;
         _logger = logger;
 
-        NoReplyEmail = configuration["smtp:noreply_email"] ?? string.Empty;
+        string? noReplyEmail = configuration["smtp:noreply_email"];
 
-        if (string.IsNullOrWhiteSpace(NoReplyEmail))
+        if (string.IsNullOrWhiteSpace(noReplyEmail))
         {
-            throw new NullReferenceException("SMTP no-reply email is missing");
+            throw new InvalidOperationException("SMTP no-reply email is missing or empty in configuration ('smtp:noreply_email').");
         }
+
+        NoReplyEmail = noReplyEmail;
     }
 
     /// <summary>
     ///     Sends an email for the application. If recordEmail is true, an audit record
     ///     is created in the database and its ID is passed to track delivery status.
     /// </summary>
-    private async Task<string?> SendEmail(
+    private async Task<string?> SendEmailAsync(
         string smtpFrom,
         string smtpTo,
         string subject,
@@ -48,7 +51,7 @@ public class EmailService
 
         if (recordEmail)
         {
-            EmailRecord emailRecord = new EmailRecord();
+            EmailRecord emailRecord = new();
             emailRecord.SetRecordDetails(smtpFrom, smtpTo, subject, body, DateTime.UtcNow);
 
             await _dbContext.EmailRecords.AddAsync(emailRecord, cancellationToken);
@@ -63,10 +66,16 @@ public class EmailService
     }
 
     /// <summary>
-    ///     Resends an email using the details stored in the EmailRecord.
+    /// Resends an email using the details stored in the specified email record.
     /// </summary>
+    /// <param name="emailRecord">The record containing email dispatch metadata and payload.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="emailRecord"/> is null.</exception>
     public void ResendEmail(EmailRecord emailRecord)
     {
+        ArgumentNullException.ThrowIfNull(emailRecord);
+
+        _logger.LogInformation("Resending email with record ID {RecordId} to recipient {Recipient}", emailRecord.Id, emailRecord.SentTo);
+
         _smtpService.SendInBackground(
             emailRecord.SentFrom,
             emailRecord.SentTo,
@@ -77,14 +86,30 @@ public class EmailService
     }
 
     /// <summary>
-    ///     Deletes an email record if the recipient matches the specified user.
+    /// Deletes an email record if the recipient matches the specified user.
     /// </summary>
-    public async Task DeleteEmailRecord(
-        string resendEmailRecordId,
-        ApplicationUser user,
+    /// <param name="resendEmailRecordId">The unique identifier of the email record to delete.</param>
+    /// <param name="user">The user who must be the recipient of the email record.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns><c>true</c> if the email record was successfully found and removed; otherwise, <c>false</c>.</returns>
+    public async Task<bool> DeleteEmailRecordAsync(
+        string? resendEmailRecordId,
+        ApplicationUser? user,
         CancellationToken cancellationToken = default
     )
     {
+        if (string.IsNullOrWhiteSpace(resendEmailRecordId))
+        {
+            return false;
+        }
+
+        if (user == null)
+        {
+            _logger.LogWarning("Cannot delete email record {RecordId}: target user is null.", resendEmailRecordId);
+
+            return false;
+        }
+
         EmailRecord? emailRecord = await _dbContext.EmailRecords.FirstOrDefaultAsync(
             record => record.Id == resendEmailRecordId,
             cancellationToken
@@ -93,111 +118,348 @@ public class EmailService
         if (emailRecord == null)
         {
             _logger.LogWarning("Could not find email record with id {RecordId} to delete.", resendEmailRecordId);
-            return;
+            return false;
         }
 
-        if (emailRecord.SentTo == user.Email)
-        {
-            try
-            {
-                _dbContext.EmailRecords.Remove(emailRecord);
-                await _dbContext.SaveChangesAsync(cancellationToken);
-            }
-            catch (DbUpdateException exception)
-            {
-                _logger.LogError(exception, "Database update error deleting email record {RecordId}", resendEmailRecordId);
-            }
-        }
-        else
+        if (string.IsNullOrWhiteSpace(user.Email) ||
+            !string.Equals(emailRecord.SentTo, user.Email, StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogWarning("Cannot delete email record {RecordId}. User email does not match recipient address.", resendEmailRecordId);
+
+            return false;
+        }
+
+        try
+        {
+            _dbContext.EmailRecords.Remove(emailRecord);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation("Deleted email record {RecordId} for user {UserId}", resendEmailRecordId, user.Id);
+
+            return true;
+        }
+        catch (DbUpdateException exception)
+        {
+            _logger.LogError(exception, "Database update error deleting email record {RecordId}", resendEmailRecordId);
+
+            return false;
         }
     }
 
-    // Sends a reminder to the user to complete reset of authenticator
-    public async Task SendResetTOTPAccessReminderEmail(string emailFrom, string emailTo, string userName)
+    /// <summary>
+    /// Sends a reminder to the user to complete reset of their TOTP authenticator.
+    /// </summary>
+    public async Task SendResetTOTPAccessReminderEmailAsync(
+        string emailFrom,
+        string emailTo,
+        string userName,
+        CancellationToken cancellationToken = default
+    )
     {
         string emailSubject = "Please Reset TOTP Access";
         string emailBody = $"Dear {userName}, you previously tried to reset your TOTP authenticator but did not reset it completely. To keep your account secure, we have blocked your latest Sign In attempt. Please finish resetting your authenticator to Sign In.";
 
-        await SendEmail(emailFrom, emailTo, emailSubject, emailBody);
+        await SendEmailAsync(emailFrom, emailTo, emailSubject, emailBody, recordEmail: false, cancellationToken);
     }
 
-    // Sends a verification code to verify user identity before resetting TOTP access
-    public async Task<string?> SendResetTOTPAccessVerificationEmail(string emailFrom, string emailTo, string userName, string verificationCode)
+    /// <summary>
+    /// Sends a reminder to the user to complete reset of their TOTP authenticator using the user entity.
+    /// </summary>
+    public async Task SendResetTOTPAccessReminderEmailAsync(
+        ApplicationUser user,
+        string? emailFrom = null,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await SendResetTOTPAccessReminderEmailAsync(
+            !string.IsNullOrWhiteSpace(emailFrom) ? emailFrom : NoReplyEmail,
+            user.GetRequiredEmail(),
+            user.GetDisplayName(),
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Sends a verification code to verify user identity before resetting TOTP access.
+    /// </summary>
+    public async Task<string?> SendResetTOTPAccessVerificationEmailAsync(
+        string emailFrom,
+        string emailTo,
+        string userName,
+        string verificationCode,
+        CancellationToken cancellationToken = default
+    )
     {
         string emailSubject = "Please Confirm Your Identity";
-        string emailBody = $"Greetings {userName}, please confirm you identity by submitting this verification code: {verificationCode}";
+        string emailBody = $"Greetings {userName}, please confirm your identity by submitting this verification code: {verificationCode}";
 
-        return await SendEmail(emailFrom, emailTo, emailSubject, emailBody, recordEmail: true);
+        return await SendEmailAsync(emailFrom, emailTo, emailSubject, emailBody, recordEmail: true, cancellationToken);
     }
 
-    // Sends a verification code to confirm user email address
-    public async Task<string?> SendEmailConfirmationEmail(string emailFrom, string emailTo, string userName, string verificationCode)
+    /// <summary>
+    /// Sends a verification code to verify user identity before resetting TOTP access using the user entity.
+    /// </summary>
+    public async Task<string?> SendResetTOTPAccessVerificationEmailAsync(
+        ApplicationUser user,
+        string verificationCode,
+        string? emailFrom = null,
+        CancellationToken cancellationToken = default
+    )
+    {
+        return await SendResetTOTPAccessVerificationEmailAsync(
+            !string.IsNullOrWhiteSpace(emailFrom) ? emailFrom : NoReplyEmail,
+            user.GetRequiredEmail(),
+            user.GetDisplayName(),
+            verificationCode,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Sends a verification code to confirm user email address.
+    /// </summary>
+    public async Task<string?> SendEmailConfirmationEmailAsync(
+        string emailFrom,
+        string emailTo,
+        string userName,
+        string verificationCode,
+        CancellationToken cancellationToken = default
+    )
     {
         string emailSubject = "Please Confirm Your Email";
         string emailBody = $"Greetings {userName}, please confirm your email by submitting this verification code: {verificationCode}";
 
-        return await SendEmail(emailFrom, emailTo, emailSubject, emailBody, recordEmail: true);
+        return await SendEmailAsync(emailFrom, emailTo, emailSubject, emailBody, recordEmail: true, cancellationToken);
     }
 
-    // Notifies user that email has been confirmed
-    public async Task SendEmailConfirmedEmail(string emailFrom, string emailTo, string userName)
+    /// <summary>
+    /// Sends a verification code to confirm user email address using the user entity.
+    /// </summary>
+    public async Task<string?> SendEmailConfirmationEmailAsync(
+        ApplicationUser user,
+        string verificationCode,
+        string? emailFrom = null,
+        CancellationToken cancellationToken = default
+    )
+    {
+        return await SendEmailConfirmationEmailAsync(
+            !string.IsNullOrWhiteSpace(emailFrom) ? emailFrom : NoReplyEmail,
+            user.GetRequiredEmail(),
+            user.GetDisplayName(),
+            verificationCode,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Notifies user that email has been confirmed.
+    /// </summary>
+    public async Task SendEmailConfirmedEmailAsync(
+        string emailFrom,
+        string emailTo,
+        string userName,
+        CancellationToken cancellationToken = default
+    )
     {
         string emailSubject = "Email Confirmed";
         string emailBody = $"Congratulations {userName}, your email is now verified.";
 
-        await SendEmail(emailFrom, emailTo, emailSubject, emailBody);
+        await SendEmailAsync(emailFrom, emailTo, emailSubject, emailBody, recordEmail: false, cancellationToken);
     }
 
-    // Sends a verification code to confirm a new session
-    public async Task<string?> SendNewSessionVerificationEmail(string emailFrom, string emailTo, string userName, string verificationCode)
+    /// <summary>
+    /// Notifies user that email has been confirmed using the user entity.
+    /// </summary>
+    public async Task SendEmailConfirmedEmailAsync(
+        ApplicationUser user,
+        string? emailFrom = null,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await SendEmailConfirmedEmailAsync(
+            !string.IsNullOrWhiteSpace(emailFrom) ? emailFrom : NoReplyEmail,
+            user.GetRequiredEmail(),
+            user.GetDisplayName(),
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Sends a verification code to confirm a new session.
+    /// </summary>
+    public async Task<string?> SendNewSessionVerificationEmailAsync(
+        string emailFrom,
+        string emailTo,
+        string userName,
+        string verificationCode,
+        CancellationToken cancellationToken = default
+    )
     {
         string emailSubject = "Please Confirm New Session";
-        string emailBody = $"Greetings, please confirm new sign in by submitting this verification code: {verificationCode}";
+        string emailBody = $"Greetings {userName}, please confirm new sign in by submitting this verification code: {verificationCode}";
 
-        return await SendEmail(emailFrom, emailTo, emailSubject, emailBody, recordEmail: true);
+        return await SendEmailAsync(emailFrom, emailTo, emailSubject, emailBody, recordEmail: true, cancellationToken);
     }
 
-    // Notifies the user about account lockout
-    public async Task SendAccountLockedOutEmail(string emailFrom, string emailTo, string userName)
+    /// <summary>
+    /// Sends a verification code to confirm a new session using the user entity.
+    /// </summary>
+    public async Task<string?> SendNewSessionVerificationEmailAsync(
+        ApplicationUser user,
+        string verificationCode,
+        string? emailFrom = null,
+        CancellationToken cancellationToken = default
+    )
+    {
+        return await SendNewSessionVerificationEmailAsync(
+            !string.IsNullOrWhiteSpace(emailFrom) ? emailFrom : NoReplyEmail,
+            user.GetRequiredEmail(),
+            user.GetDisplayName(),
+            verificationCode,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Notifies the user about account lockout.
+    /// </summary>
+    public async Task SendAccountLockedOutEmailAsync(
+        string emailFrom,
+        string emailTo,
+        string userName,
+        CancellationToken cancellationToken = default
+    )
     {
         string emailSubject = "Account Locked Out";
         string emailBody = $"Dear {userName}, due to 3 unsuccessful attempts to sign in to your account, we have locked it out. You can try again in 30 minutes or click this link to reset your TOTP access.";
 
-        await SendEmail(emailFrom, emailTo, emailSubject, emailBody);
+        await SendEmailAsync(emailFrom, emailTo, emailSubject, emailBody, recordEmail: false, cancellationToken);
     }
 
-    // Notifies user about a new active session
-    public async Task SendNewActiveSessionNotificationEmail(string emailFrom, string emailTo, string userName)
+    /// <summary>
+    /// Notifies the user about account lockout using the user entity.
+    /// </summary>
+    public async Task SendAccountLockedOutEmailAsync(
+        ApplicationUser user,
+        string? emailFrom = null,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await SendAccountLockedOutEmailAsync(
+            !string.IsNullOrWhiteSpace(emailFrom) ? emailFrom : NoReplyEmail,
+            user.GetRequiredEmail(),
+            user.GetDisplayName(),
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Notifies user about a new active session.
+    /// </summary>
+    public async Task SendNewActiveSessionNotificationEmailAsync(
+        string emailFrom,
+        string emailTo,
+        string userName,
+        CancellationToken cancellationToken = default
+    )
     {
         string emailSubject = "New Active Session Started";
         string emailBody = $"Dear {userName}, this is to notify you of a new active session.";
 
-        await SendEmail(emailFrom, emailTo, emailSubject, emailBody);
+        await SendEmailAsync(emailFrom, emailTo, emailSubject, emailBody, recordEmail: false, cancellationToken);
     }
 
-    // Notifies user to complete account registration
-    public async Task SendAccountNotRegisteredEmail(string emailFrom, string emailTo, string userName)
+    /// <summary>
+    /// Notifies user about a new active session using the user entity.
+    /// </summary>
+    public async Task SendNewActiveSessionNotificationEmailAsync(
+        ApplicationUser user,
+        string? emailFrom = null,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await SendNewActiveSessionNotificationEmailAsync(
+            !string.IsNullOrWhiteSpace(emailFrom) ? emailFrom : NoReplyEmail,
+            user.GetRequiredEmail(),
+            user.GetDisplayName(),
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Notifies user to complete account registration.
+    /// </summary>
+    public async Task SendAccountNotRegisteredEmailAsync(
+        string emailFrom,
+        string emailTo,
+        string userName,
+        CancellationToken cancellationToken = default
+    )
     {
         string emailSubject = "SignIn Attempt Detected";
         string emailBody = $"Dear {userName}, we have detected a sign in attempt for your account. To log in, you need to finish registration.";
 
-        await SendEmail(emailFrom, emailTo, emailSubject, emailBody);
+        await SendEmailAsync(emailFrom, emailTo, emailSubject, emailBody, recordEmail: false, cancellationToken);
     }
 
-    // Sends an email notification about two-factor authentication status change
-    public async Task SendNewTwoFactorAuthenticationStatusEmail(string emailFrom, string emailTo, string userName, bool twoFactorEnabled)
+    /// <summary>
+    /// Notifies user to complete account registration using the user entity.
+    /// </summary>
+    public async Task SendAccountNotRegisteredEmailAsync(
+        ApplicationUser user,
+        string? emailFrom = null,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await SendAccountNotRegisteredEmailAsync(
+            !string.IsNullOrWhiteSpace(emailFrom) ? emailFrom : NoReplyEmail,
+            user.GetRequiredEmail(),
+            user.GetDisplayName(),
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Sends an email notification about two-factor authentication status change.
+    /// </summary>
+    public async Task SendNewTwoFactorAuthenticationStatusEmailAsync(
+        string emailFrom,
+        string emailTo,
+        string userName,
+        bool twoFactorEnabled,
+        CancellationToken cancellationToken = default
+    )
     {
         string twoFactorAuthenticationStatus = twoFactorEnabled ? "Enabled" : "Disabled";
 
         string emailSubject = $"Two Factor Authentication {twoFactorAuthenticationStatus}";
-        string emailBody = $"Dear {userName}, two factor authentication via email has been {twoFactorAuthenticationStatus.ToLowerInvariant()} for your account. Thank you.";
+        string emailBody = $"Dear {userName}, two factor authentication via email has been {twoFactorAuthenticationStatus.ToLowerInvariant()} for your account.";
 
-        await SendEmail(emailFrom, emailTo, emailSubject, emailBody);
+        await SendEmailAsync(emailFrom, emailTo, emailSubject, emailBody, recordEmail: false, cancellationToken);
     }
 
-    // Sends a TOTP Access recovery code to the CIS product owner
+    /// <summary>
+    /// Sends an email notification about two-factor authentication status change using the user entity.
+    /// </summary>
+    public async Task SendNewTwoFactorAuthenticationStatusEmailAsync(
+        ApplicationUser user,
+        bool twoFactorEnabled,
+        string? emailFrom = null,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await SendNewTwoFactorAuthenticationStatusEmailAsync(
+            !string.IsNullOrWhiteSpace(emailFrom) ? emailFrom : NoReplyEmail,
+            user.GetRequiredEmail(),
+            user.GetDisplayName(),
+            twoFactorEnabled,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Sends a TOTP Access recovery code to the CIS product owner.
+    /// </summary>
     public async Task<bool> SendProductOwnerTOTPAccessRecoveryCodeEmailAsync(
         string emailFrom,
         string emailTo,
@@ -219,4 +481,3 @@ public class EmailService
         );
     }
 }
-
