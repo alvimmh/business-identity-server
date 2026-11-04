@@ -47,22 +47,33 @@ public sealed class EmailService
         CancellationToken cancellationToken = default
     )
     {
-        string? sendEmailEventId = null;
-
-        if (recordEmail)
+        try
         {
-            EmailRecord emailRecord = new();
-            emailRecord.SetRecordDetails(smtpFrom, smtpTo, subject, body, DateTime.UtcNow);
+            string? sendEmailEventId = null;
 
-            await _dbContext.EmailRecords.AddAsync(emailRecord, cancellationToken);
-            await _dbContext.SaveChangesAsync(cancellationToken);
+            if (recordEmail)
+            {
+                EmailRecord emailRecord = new();
 
-            sendEmailEventId = emailRecord.Id;
+                emailRecord.SetRecordDetails(smtpFrom, smtpTo, subject, body, DateTime.UtcNow);
+
+                await _dbContext.EmailRecords.AddAsync(emailRecord, cancellationToken);
+
+                await _dbContext.SaveChangesAsync(cancellationToken);
+
+                sendEmailEventId = emailRecord.Id;
+            }
+
+            _smtpService.SendInBackground(smtpFrom, smtpTo, subject, body, sendEmailEventId);
+
+            return sendEmailEventId;
         }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Failed to initiate email dispatch with subject '{Subject}' to recipient {Recipient}", subject, smtpTo);
 
-        _smtpService.SendInBackground(smtpFrom, smtpTo, subject, body, sendEmailEventId);
-
-        return sendEmailEventId;
+            return null;
+        }
     }
 
     /// <summary>
@@ -110,37 +121,45 @@ public sealed class EmailService
             return false;
         }
 
-        EmailRecord? emailRecord = await _dbContext.EmailRecords.FirstOrDefaultAsync(
-            record => record.Id == resendEmailRecordId,
-            cancellationToken
-        );
-
-        if (emailRecord == null)
+        if (string.IsNullOrWhiteSpace(user.Email))
         {
-            _logger.LogWarning("Could not find email record with id {RecordId} to delete.", resendEmailRecordId);
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(user.Email) ||
-            !string.Equals(emailRecord.SentTo, user.Email, StringComparison.OrdinalIgnoreCase))
-        {
-            _logger.LogWarning("Cannot delete email record {RecordId}. User email does not match recipient address.", resendEmailRecordId);
+            _logger.LogWarning("Cannot delete email record {RecordId}: target user {UserId} has missing or empty email address.", resendEmailRecordId, user.Id);
 
             return false;
         }
 
         try
         {
+            EmailRecord? emailRecord = await _dbContext.EmailRecords.FirstOrDefaultAsync(
+                record => record.Id == resendEmailRecordId,
+                cancellationToken
+            );
+
+            if (emailRecord == null)
+            {
+                _logger.LogWarning("Could not find email record with id {RecordId} to delete for user {UserId}.", resendEmailRecordId, user.Id);
+
+                return false;
+            }
+
+            if (!string.Equals(emailRecord.SentTo, user.Email, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Cannot delete email record {RecordId}: recipient address does not match user {UserId} email.", resendEmailRecordId, user.Id);
+
+                return false;
+            }
+
             _dbContext.EmailRecords.Remove(emailRecord);
+
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation("Deleted email record {RecordId} for user {UserId}", resendEmailRecordId, user.Id);
 
             return true;
         }
-        catch (DbUpdateException exception)
+        catch (Exception exception)
         {
-            _logger.LogError(exception, "Database update error deleting email record {RecordId}", resendEmailRecordId);
+            _logger.LogError(exception, "Failed to delete email record {RecordId} for user {UserId}", resendEmailRecordId, user.Id);
 
             return false;
         }
@@ -171,9 +190,18 @@ public sealed class EmailService
         CancellationToken cancellationToken = default
     )
     {
+        ArgumentNullException.ThrowIfNull(user);
+
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            _logger.LogWarning("Cannot send TOTP access reset reminder email: user {UserId} has no email address.", user.Id);
+
+            return;
+        }
+
         await SendResetTOTPAccessReminderEmailAsync(
             !string.IsNullOrWhiteSpace(emailFrom) ? emailFrom : NoReplyEmail,
-            user.GetRequiredEmail(),
+            user.Email,
             user.GetDisplayName(),
             cancellationToken
         );
@@ -206,9 +234,18 @@ public sealed class EmailService
         CancellationToken cancellationToken = default
     )
     {
+        ArgumentNullException.ThrowIfNull(user);
+
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            _logger.LogWarning("Cannot send TOTP access reset verification email: user {UserId} has no email address.", user.Id);
+
+            return null;
+        }
+
         return await SendResetTOTPAccessVerificationEmailAsync(
             !string.IsNullOrWhiteSpace(emailFrom) ? emailFrom : NoReplyEmail,
-            user.GetRequiredEmail(),
+            user.Email,
             user.GetDisplayName(),
             verificationCode,
             cancellationToken
@@ -242,9 +279,18 @@ public sealed class EmailService
         CancellationToken cancellationToken = default
     )
     {
+        ArgumentNullException.ThrowIfNull(user);
+
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            _logger.LogWarning("Cannot send email confirmation email: user {UserId} has no email address.", user.Id);
+
+            return null;
+        }
+
         return await SendEmailConfirmationEmailAsync(
             !string.IsNullOrWhiteSpace(emailFrom) ? emailFrom : NoReplyEmail,
-            user.GetRequiredEmail(),
+            user.Email,
             user.GetDisplayName(),
             verificationCode,
             cancellationToken
@@ -276,9 +322,18 @@ public sealed class EmailService
         CancellationToken cancellationToken = default
     )
     {
+        ArgumentNullException.ThrowIfNull(user);
+
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            _logger.LogWarning("Cannot send email confirmed notification email: user {UserId} has no email address.", user.Id);
+
+            return;
+        }
+
         await SendEmailConfirmedEmailAsync(
             !string.IsNullOrWhiteSpace(emailFrom) ? emailFrom : NoReplyEmail,
-            user.GetRequiredEmail(),
+            user.Email,
             user.GetDisplayName(),
             cancellationToken
         );
@@ -311,9 +366,18 @@ public sealed class EmailService
         CancellationToken cancellationToken = default
     )
     {
+        ArgumentNullException.ThrowIfNull(user);
+
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            _logger.LogWarning("Cannot send new session verification email: user {UserId} has no email address.", user.Id);
+
+            return null;
+        }
+
         return await SendNewSessionVerificationEmailAsync(
             !string.IsNullOrWhiteSpace(emailFrom) ? emailFrom : NoReplyEmail,
-            user.GetRequiredEmail(),
+            user.Email,
             user.GetDisplayName(),
             verificationCode,
             cancellationToken
@@ -345,9 +409,18 @@ public sealed class EmailService
         CancellationToken cancellationToken = default
     )
     {
+        ArgumentNullException.ThrowIfNull(user);
+
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            _logger.LogWarning("Cannot send account lockout notification email: user {UserId} has no email address.", user.Id);
+
+            return;
+        }
+
         await SendAccountLockedOutEmailAsync(
             !string.IsNullOrWhiteSpace(emailFrom) ? emailFrom : NoReplyEmail,
-            user.GetRequiredEmail(),
+            user.Email,
             user.GetDisplayName(),
             cancellationToken
         );
@@ -378,9 +451,18 @@ public sealed class EmailService
         CancellationToken cancellationToken = default
     )
     {
+        ArgumentNullException.ThrowIfNull(user);
+
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            _logger.LogWarning("Cannot send new active session notification email: user {UserId} has no email address.", user.Id);
+
+            return;
+        }
+
         await SendNewActiveSessionNotificationEmailAsync(
             !string.IsNullOrWhiteSpace(emailFrom) ? emailFrom : NoReplyEmail,
-            user.GetRequiredEmail(),
+            user.Email,
             user.GetDisplayName(),
             cancellationToken
         );
@@ -411,9 +493,18 @@ public sealed class EmailService
         CancellationToken cancellationToken = default
     )
     {
+        ArgumentNullException.ThrowIfNull(user);
+
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            _logger.LogWarning("Cannot send account registration reminder email: user {UserId} has no email address.", user.Id);
+
+            return;
+        }
+
         await SendAccountNotRegisteredEmailAsync(
             !string.IsNullOrWhiteSpace(emailFrom) ? emailFrom : NoReplyEmail,
-            user.GetRequiredEmail(),
+            user.Email,
             user.GetDisplayName(),
             cancellationToken
         );
@@ -448,9 +539,18 @@ public sealed class EmailService
         CancellationToken cancellationToken = default
     )
     {
+        ArgumentNullException.ThrowIfNull(user);
+
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            _logger.LogWarning("Cannot send two-factor authentication status change email: user {UserId} has no email address.", user.Id);
+
+            return;
+        }
+
         await SendNewTwoFactorAuthenticationStatusEmailAsync(
             !string.IsNullOrWhiteSpace(emailFrom) ? emailFrom : NoReplyEmail,
-            user.GetRequiredEmail(),
+            user.Email,
             user.GetDisplayName(),
             twoFactorEnabled,
             cancellationToken
