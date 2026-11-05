@@ -3,6 +3,8 @@ using BusinessIdentityServer.Internals.Captcha.Filters;
 using BusinessIdentityServer.Internals.Services;
 using BusinessIdentityServer.Internals.Services.DataProtection;
 using BusinessIdentityServer.Internals.Services.Email;
+using BusinessIdentityServer.Internals.Services.Identity;
+using BusinessIdentityServer.Internals.Services.Identity.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BusinessIdentityServer.Internals.DependencyInjectionExtensions;
@@ -25,6 +27,11 @@ public static class RegisterServices
         // email delivery and audit tracking services
         services.AddSingleton<SMTPService>();
         services.AddScoped<EmailService>();
+
+        // identity session management, challenge verification, and recovery services
+        services.AddScoped<IUserSessionService, UserSessionService>();
+        services.AddScoped<ITotpChallengeService, TotpChallengeService>();
+        services.AddScoped<IAccountRecoveryService, AccountRecoveryService>();
 
         return services;
     }

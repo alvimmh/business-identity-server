@@ -23,8 +23,8 @@ public class ApplicationUser : IdentityUser
     // Field to indicate if user is soft-deleted or not
     public bool Archived { get; private set; }
 
-    // Updates the LastSignedInAt property of the user.
-    public void UpdateLastSignedInTimeStamp()
+    // Records the user's sign-in timestamp and updates the audit timestamp.
+    public void RecordSignInTimestamp()
     {
         DateTime currentDateTime = DateTime.UtcNow;
 

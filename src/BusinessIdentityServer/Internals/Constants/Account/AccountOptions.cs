@@ -16,4 +16,8 @@ public static class AccountOptions
     // the lifetime of TempData in seconds as integer, after which the TempData will be
     // rendered invalid
     public const int TempDataLifetimeInSeconds = 180;
+
+    // the default application issuer name used when generating TOTP authenticator URI QR codes
+    // if not configured via the APP_SHORT_NAME environment variable
+    public const string DefaultAuthenticatorIssuer = "Application";
 }
